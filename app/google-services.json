@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "462002915419",
+    "project_id": "mindzen-1bea1",
+    "storage_bucket": "mindzen-1bea1.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:462002915419:android:83be16fb3264a0eb52977e",
+        "android_client_info": {
+          "package_name": "com.gabidbr.mindzen"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "462002915419-oo98s1l1bmll02knkq62akfrb9mrikup.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.gabidbr.mindzen",
+            "certificate_hash": "5330f068da1a7b08028cf898be01d1456e2f9f9c"
+          }
+        },
+        {
+          "client_id": "462002915419-91avmkk17a60670fermidv89c0tkqrbl.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCWFpHXZcIPzs2JGypYBXugpoVJQz3i0AY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "462002915419-91avmkk17a60670fermidv89c0tkqrbl.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -10,6 +10,12 @@ import android.widget.TextView;
 
 import com.airbnb.lottie.LottieAnimationView;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
 
 @SuppressLint("CustomSplashScreen")
 public class SplashScreenActivity extends AppCompatActivity {
@@ -31,12 +37,40 @@ public class SplashScreenActivity extends AppCompatActivity {
         new Handler().postDelayed(new Runnable() {
             @Override
             public void run() {
-                if (FirebaseAuth.getInstance().getCurrentUser() != null) {
-                    // If the user is already logged in, start the DashboardActivity
-                    startActivity(new Intent(SplashScreenActivity.this, DashboardActivity.class));
-                    finish();
+                FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+
+                if (currentUser != null) {
+                    // User is already authenticated
+                    DatabaseReference userRef = FirebaseDatabase.getInstance()
+                            .getReference("users")
+                            .child(currentUser.getUid());
+
+                    userRef.addListenerForSingleValueEvent(new ValueEventListener() {
+                        @Override
+                        public void onDataChange(DataSnapshot snapshot) {
+                            // Check if user has all required data
+                            boolean hasRequiredData = snapshot.hasChild("name")
+                                    && snapshot.hasChild("age")
+                                    && snapshot.hasChild("gender");
+
+                            if (hasRequiredData) {
+                                // User has all required data, go to DashboardActivity
+                                startActivity(new Intent(SplashScreenActivity.this, DashboardActivity.class));
+                                finish();
+                            } else {
+                                // User is missing required data, go to UserDetailsActivity
+                                startActivity(new Intent(SplashScreenActivity.this, UserDetailsActivity.class));
+                                finish();
+                            }
+                        }
+
+                        @Override
+                        public void onCancelled(DatabaseError error) {
+                            // Handle error
+                        }
+                    });
                 } else {
-                    // If the user is not logged in, start the LoginActivity
+                    // User is not authenticated, go to MainActivity
                     startActivity(new Intent(SplashScreenActivity.this, MainActivity.class));
                     finish();
                 }

@@ -1,5 +1,6 @@
 package com.gabidbr.mindzen;
 
+import android.app.AlertDialog;
 import android.app.AppOpsManager;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -7,16 +8,21 @@ import android.app.PendingIntent;
 import android.app.usage.UsageStats;
 import android.app.usage.UsageStatsManager;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.MediaStore;
 import android.provider.Settings;
+import android.view.View;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -25,6 +31,7 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.fragment.app.FragmentTransaction;
 
+import com.bumptech.glide.Glide;
 import com.github.mikephil.charting.charts.BarChart;
 import com.github.mikephil.charting.components.AxisBase;
 import com.github.mikephil.charting.components.XAxis;
@@ -33,26 +40,52 @@ import com.github.mikephil.charting.data.BarDataSet;
 import com.github.mikephil.charting.data.BarEntry;
 import com.github.mikephil.charting.formatter.ValueFormatter;
 import com.github.mikephil.charting.interfaces.datasets.IBarDataSet;
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageReference;
+import com.google.firebase.storage.UploadTask;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
+import de.hdodenhof.circleimageview.CircleImageView;
+
 public class DashboardActivity extends AppCompatActivity {
 
     private static final int PERMISSION_REQUEST_CODE = 123;
+    private static final int REQUEST_IMAGE_CAPTURE = 1;
+    private static final int REQUEST_IMAGE_PICK = 2;
+
 
     LinearLayout exercisesButton, aboutButton, insightsButton;
     BarChart barChart;
     CardView cardView;
     ImageButton imageButton;
+    TextView userName;
+    CircleImageView circleImageView;
+    private DatabaseReference mDatabase;
+    FirebaseStorage storage;
+    StorageReference storageRef;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_dashboard);
+        storage = FirebaseStorage.getInstance();
+        storageRef = storage.getReference();
+        mDatabase = FirebaseDatabase.getInstance().getReference();
 
         exercisesButton = findViewById(R.id.exercisesLinearLayout);
         aboutButton = findViewById(R.id.aboutLinearLayout);
@@ -60,6 +93,37 @@ public class DashboardActivity extends AppCompatActivity {
         barChart = findViewById(R.id.bar_chart);
         cardView = findViewById(R.id.screen_time_card);
         imageButton = findViewById(R.id.avatarButton);
+        userName = findViewById(R.id.userName_textView);
+
+        circleImageView = findViewById(R.id.imageView11);
+        circleImageView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                AlertDialog.Builder builder = new AlertDialog.Builder(DashboardActivity.this);
+                builder.setTitle("Choose an option")
+                        .setItems(new CharSequence[]{"Take a photo", "Choose from gallery"}, new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                switch (which) {
+                                    case 0:
+                                        // Take a photo from camera
+                                        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+                                        startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
+                                        break;
+                                    case 1:
+                                        // Select an existing photo from gallery
+                                        Intent pickPhotoIntent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+                                        pickPhotoIntent.setType("image/*");
+                                        startActivityForResult(pickPhotoIntent, REQUEST_IMAGE_PICK);
+                                        break;
+                                }
+                            }
+                        })
+                        .show();
+            }
+        });
+
+        setupUserName(userName);
 
         setupBarChart(barChart);
 
@@ -87,6 +151,106 @@ public class DashboardActivity extends AppCompatActivity {
         displayNotificationIfStressed();
 
     }
+
+    private void uploadImageToFirebaseStorage(Uri imageUri) {
+        StorageReference storageReference = storageRef.child("images/" + FirebaseAuth.getInstance().getCurrentUser().getUid() + "/profile.jpg");
+
+        UploadTask uploadTask = storageReference.putFile(imageUri);
+        uploadTask.addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
+            @Override
+            public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
+                // Image uploaded successfully
+                // Get the download URL of the image and save it in Firebase Realtime Database
+                storageReference.getDownloadUrl().addOnSuccessListener(new OnSuccessListener<Uri>() {
+                    @Override
+                    public void onSuccess(Uri uri) {
+                        String imageUrl = uri.toString();
+                        mDatabase.child("users").child(FirebaseAuth.getInstance().getCurrentUser().getUid()).child("image_url").setValue(imageUrl);
+                        // Update the CircleImageView with the uploaded image
+                        Glide.with(DashboardActivity.this)
+                                .load(imageUrl)
+                                .into(circleImageView);
+                    }
+                });
+            }
+        }).addOnFailureListener(new OnFailureListener() {
+            @Override
+            public void onFailure( Exception exception) {
+                // Image upload failed
+                Toast.makeText(DashboardActivity.this, "Image upload failed", Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (resultCode == RESULT_OK) {
+            if (requestCode == REQUEST_IMAGE_CAPTURE) {
+                // Get the image taken from camera
+                Bundle extras = data.getExtras();
+                Bitmap imageBitmap = (Bitmap) extras.get("data");
+
+                // Set the image as the source of CircleImageView
+                circleImageView.setImageBitmap(imageBitmap);
+
+                // Upload the image to Firebase Storage
+                Uri imageUri = getImageUri(this, imageBitmap);
+                if (imageUri != null) {
+                    uploadImageToFirebaseStorage(imageUri);
+                }
+            } else if (requestCode == REQUEST_IMAGE_PICK) {
+                // Get the image selected from gallery
+                Uri imageUri = data.getData();
+                Bitmap imageBitmap;
+                try {
+                    imageBitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
+                    // Set the image as the source of CircleImageView
+                    circleImageView.setImageBitmap(imageBitmap);
+
+                    // Upload the image to Firebase Storage
+                    if (imageUri != null) {
+                        uploadImageToFirebaseStorage(imageUri);
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    private void setupUserName(TextView userName) {
+        String userId = FirebaseAuth.getInstance().getCurrentUser().getUid();
+
+        mDatabase.child("users").child(userId).child("name").addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot snapshot) {
+                if (snapshot.exists()) {
+                    String name = snapshot.getValue(String.class);
+                    userName.setText(name);
+                    String imageUrl = snapshot.child("image_url").getValue(String.class);
+                    if (imageUrl != null) {
+                        Glide.with(DashboardActivity.this)
+                                .load(imageUrl)
+                                .into(circleImageView);
+                    }
+                }
+            }
+
+            @Override
+            public void onCancelled(DatabaseError error) {
+            }
+        });
+    }
+
+    private Uri getImageUri(Context context, Bitmap bitmap) {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, bytes);
+        String path = MediaStore.Images.Media.insertImage(context.getContentResolver(), bitmap, "Title", null);
+        return Uri.parse(path);
+    }
+
 
 
     private void displayNotificationIfStressed() {

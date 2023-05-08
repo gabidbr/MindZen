@@ -15,6 +15,7 @@ import com.google.firebase.auth.FirebaseAuth;
 
 public class LoginActivity extends AppCompatActivity {
     Button button;
+    Button noAccountRegisterButton;
     FirebaseAuth mAuth;
     private EditText editTextEmail;
     private EditText editTextPassword;
@@ -28,12 +29,17 @@ public class LoginActivity extends AppCompatActivity {
 
         editTextEmail = findViewById(R.id.editTextEmail);
         editTextPassword = findViewById(R.id.editTextPassword);
+        noAccountRegisterButton = findViewById(R.id.noAccountRegisterButton);
 
         removeDefaultTextOnFocus();
 
         button= findViewById(R.id.button3);
         button.setOnClickListener(v -> {
             loginUser(editTextEmail.getText().toString(), editTextPassword.getText().toString());
+        });
+        noAccountRegisterButton.setOnClickListener(v->{
+            Intent intent = new Intent(LoginActivity.this, SignupActivity.class);
+            startActivity(intent);
         });
     }
 
